@@ -9,6 +9,7 @@ import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.SimpleEmail;
 
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -27,7 +28,7 @@ public class Controller implements Initializable{
 	//DECLARACION DE VARIABLES
 	private Alert alerta;
 	private Modelo modelo = new Modelo();
-	
+	private Task<Void> segundoplano;
 	@FXML
 	private GridPane view;
 	
@@ -99,8 +100,7 @@ public class Controller implements Initializable{
 	@FXML
     public void onEnviarButtonAction(ActionEvent event) {
 		//EN EL HACEMOS EL TRY / SI FUNCIONA
-    	try
-    	{
+    	
     		int puerto = Integer.parseInt(textPuerto.textProperty().getValue());//COGEMOS EL VALOR DEL PUERTO CON EL TEXT PROPERTY
     		
     		if(checkSsl.selectedProperty().get() == false)//SI EL SSL NO ESTA ACTIVADO MOSTRAMOS UN ALERT
@@ -112,38 +112,47 @@ public class Controller implements Initializable{
         		return;
     		}
     		else{
-    			Email email = new SimpleEmail();//LLAMAMOS A EMAIL DE APACHE
-    			email.setHostName(textServidor.textProperty().getValue());//LE DAMOS VALOR AL HOST
-    			email.setSmtpPort(puerto);//PUERTO
-    			email.setAuthenticator(new DefaultAuthenticator(textRemitente.textProperty().getValue(), textContrasenia.textProperty().getValue()));
-    			email.setSSLOnConnect(true);
-    			email.setFrom(textRemitente.textProperty().getValue());
-    			email.setSubject(textAsunto.textProperty().getValue());
-    			email.setMsg(textMensaje.textProperty().getValue());
-    			email.addTo(textDestinatario.textProperty().getValue());
-    			email.send();//ENVIAMOS EL MENSAJE
+    			segundoplano = new Task<Void>() {
+    			@Override
+    			protected Void call() throws Exception {
+	    			Email email = new SimpleEmail();//LLAMAMOS A EMAIL DE APACHE
+	    			email.setHostName(textServidor.textProperty().getValue());//LE DAMOS VALOR AL HOST
+	    			email.setSslSmtpPort(textPuerto.textProperty().getValue());//PUERTO
+	    			email.setAuthenticator(new DefaultAuthenticator(textRemitente.textProperty().getValue(), textContrasenia.textProperty().getValue()));
+	    			email.setSSLOnConnect(true);
+	    			email.setFrom(textRemitente.textProperty().getValue());
+	    			email.setSubject(textAsunto.textProperty().getValue());
+	    			email.setMsg(textMensaje.textProperty().getValue());
+	    			email.addTo(textDestinatario.textProperty().getValue());
+	    			email.send();
+	    			return null;//ENVIAMOS EL MENSAJE
+    			} 
+    			};
     			
-    			alerta = new Alert(AlertType.INFORMATION);//UNA VEZ ENVIADO MUESTRA ALERT DE SUCCESS
-        		alerta.setTitle("Éxito");
-        		alerta.setHeaderText("Email enviado");
-        		alerta.setContentText("Email enviado con éxito a '" + textDestinatario.textProperty().getValue() + "'");
-        		alerta.showAndWait();
-        		//BORRAMOS ASUNTO Y MENSAJE POR SI QUIERE MANDAR NUEVO MENSAJE
-        		modelo.setAsunto("");
-        		modelo.setMensaje("");
-   
-    		}
-    	}//SI NO FUNCIONA
-    	catch(EmailException e){//ALERT DE ENVIO ERRONEO
-    		alerta = new Alert(AlertType.ERROR);
-    		alerta.setTitle("Error");
-    		alerta.setHeaderText("No se pudo enviar el email");
-    		alerta.setContentText(e.getMessage());
-    		alerta.showAndWait();
-    	}
-    	
+    			segundoplano.setOnSucceeded(e -> {
+	    			alerta = new Alert(AlertType.INFORMATION);//UNA VEZ ENVIADO MUESTRA ALERT DE SUCCESS
+	        		alerta.setTitle("Éxito");
+	        		alerta.setHeaderText("Email enviado");
+	        		alerta.setContentText("Email enviado con éxito a '" + textDestinatario.textProperty().getValue() + "'");
+	        		alerta.showAndWait();
+	        		
+	        		//BORRAMOS ASUNTO Y MENSAJE POR SI QUIERE MANDAR NUEVO MENSAJE
+	        		modelo.setAsunto("");
+	        		modelo.setMensaje("");
+    			});
+    		
+	    		//ALERT DE ENVIO ERRONEO
+	    		segundoplano.setOnFailed(e -> {
+	    		alerta = new Alert(AlertType.ERROR);
+	    		alerta.setTitle("Error");
+	    		alerta.setHeaderText("No se pudo enviar el email");
+	    		alerta.setContentText(e.getSource().getException().getMessage());
+	    		alerta.showAndWait();
+	    		});
+	    		botonEnviar.disableProperty().bind(segundoplano.runningProperty());
+	    		new Thread(segundoplano).start();
     }
-	
+	}
 
 
 
